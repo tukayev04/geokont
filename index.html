@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ГЕОКОНТ | Балаларға арналған интерактивті геоборд | Интерактивный геоборд</title>
+  <meta name="description" content="Республикалық балалар цифрлық жобалар байқауына арналған интерактивті геоконт (геоборд) ойыны. Этнопедагогика, қазақ оюлары, геометрия және кеңістіктік ойлау.">
+  <!-- Google Fonts: Inter & Comic-friendly Nunito for kids -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-vibrant">
+  <!-- Top App Navigation Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-badge" id="logoBadge">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" class="ornament-spin">
+            <polygon points="50,5 63,38 95,50 63,62 50,95 37,62 5,50 37,38" fill="#F59E0B" />
+            <circle cx="50" cy="50" r="18" fill="#0284C7" />
+            <circle cx="50" cy="50" r="8" fill="#FFFFFF" />
+          </svg>
+        </div>
+        <div class="logo-text">
+          <h1 class="logo-title">ГЕОКОНТ <span class="logo-sub">GEOBOARD</span></h1>
+          <p class="logo-desc" data-i18n="appSubtitle">Қазақстан балаларының цифрлық ойыны</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mode Selector Tabs -->
+    <nav class="mode-nav" aria-label="Game Modes">
+      <button class="nav-tab active" data-mode="learn" id="tabLearn">
+        <span class="tab-icon">📖</span>
+        <span class="tab-text" data-i18n="modeLearn">Оқыту мен ертек</span>
+      </button>
+      <button class="nav-tab" data-mode="tasks" id="tabTasks">
+        <span class="tab-icon">🎯</span>
+        <span class="tab-text" data-i18n="modeTasks">Шифр тапсырмалары</span>
+      </button>
+      <button class="nav-tab" data-mode="free" id="tabFree">
+        <span class="tab-icon">🎨</span>
+        <span class="tab-text" data-i18n="modeFree">Еркін шығармашылық</span>
+      </button>
+    </nav>
+
+    <!-- Top Utility Controls -->
+    <div class="header-right">
+      <!-- High Contrast Accessibility Toggle -->
+      <button class="icon-btn accessibility-btn" id="contrastToggle" title="Жоғары контраст / Высокий контраст" aria-label="Contrast mode">
+        <span class="icon">👁️</span>
+        <span class="btn-lbl" data-i18n="contrastLabel">Контраст</span>
+      </button>
+
+      <!-- Sound & Music Toggles -->
+      <div class="audio-toggles">
+        <button class="icon-btn" id="soundToggle" title="Дыбыс әсерлері / Звуки" aria-label="Toggle Sound">
+          <span class="sound-state-icon" id="soundIcon">🔔</span>
+        </button>
+        <button class="icon-btn" id="musicToggle" title="Әуен / Мелодия" aria-label="Toggle Music">
+          <span class="music-state-icon" id="musicIcon">🎵</span>
+        </button>
+      </div>
+
+      <!-- Language Switcher -->
+      <div class="lang-switch-box" role="group" aria-label="Language selector">
+        <button class="lang-btn active" id="btnLangKz" data-lang="kk">KAZ</button>
+        <button class="lang-btn" id="btnLangRu" data-lang="ru">RUS</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Game Container -->
+  <main class="main-layout">
+    <!-- Left Sidebar: Mascot Alan & Level / Story Prompts -->
+    <aside class="sidebar-left">
+      <!-- Mascot Card -->
+      <div class="mascot-card" id="mascotCard">
+        <div class="mascot-header">
+          <div class="mascot-avatar-wrap">
+            <!-- Vector Snow Leopard "Алан" in Kazakh skullcap -->
+            <svg class="mascot-svg" viewBox="0 0 120 120" id="mascotSvg">
+              <!-- Ears -->
+              <circle cx="30" cy="35" r="16" fill="#CBD5E1" />
+              <circle cx="30" cy="35" r="10" fill="#F472B6" />
+              <circle cx="90" cy="35" r="16" fill="#CBD5E1" />
+              <circle cx="90" cy="35" r="10" fill="#F472B6" />
+              <!-- Kazakh Skullcap (Тақия) with gold ornament -->
+              <ellipse cx="60" cy="28" rx="26" ry="14" fill="#0284C7" />
+              <path d="M40 28 Q60 14 80 28" stroke="#F59E0B" stroke-width="3" fill="none" />
+              <circle cx="60" cy="18" r="4" fill="#F59E0B" />
+              <!-- Head -->
+              <ellipse cx="60" cy="62" rx="38" ry="34" fill="#E2E8F0" />
+              <!-- Leopard Spots -->
+              <circle cx="38" cy="50" r="3.5" fill="#94A3B8" />
+              <circle cx="82" cy="50" r="3.5" fill="#94A3B8" />
+              <circle cx="48" cy="40" r="2.5" fill="#94A3B8" />
+              <circle cx="72" cy="40" r="2.5" fill="#94A3B8" />
+              <!-- Cheeks -->
+              <circle cx="40" cy="72" r="6" fill="#FBCFE8" opacity="0.8" />
+              <circle cx="80" cy="72" r="6" fill="#FBCFE8" opacity="0.8" />
+              <!-- Eyes with lively twinkle -->
+              <ellipse cx="46" cy="60" rx="6" ry="8" fill="#0F172A" />
+              <ellipse cx="74" cy="60" rx="6" ry="8" fill="#0F172A" />
+              <circle cx="44" cy="57" r="2.5" fill="#FFFFFF" />
+              <circle cx="72" cy="57" r="2.5" fill="#FFFFFF" />
+              <!-- Snout & Mouth -->
+              <ellipse cx="60" cy="74" rx="14" ry="10" fill="#FFFFFF" />
+              <polygon points="60,68 56,73 64,73" fill="#EC4899" />
+              <path d="M56 75 Q60 79 64 75" stroke="#0F172A" stroke-width="2" fill="none" stroke-linecap="round" />
+            </svg>
+            <div class="mascot-badge">🇰🇿 Алан</div>
+          </div>
+          <div class="mascot-title-box">
+            <h3 class="mascot-name" data-i18n="mascotName">Алан Барсенок</h3>
+            <span class="mascot-role" data-i18n="mascotRole">Сенің ақылшы досың</span>
+          </div>
+        </div>
+
+        <!-- Mascot Speech Bubble -->
+        <div class="mascot-speech-bubble" id="mascotBubble">
+          <p id="mascotSpeechText">Сәлем, жас өнертапқыш! Мен Аланмын. Сиқырлы Геоконт әлеміне қош келдің!</p>
+          <div class="speech-audio-row">
+            <button class="voice-btn" id="btnSpeakText" title="Мәтінді дауыстап оқу / Озвучить" aria-label="Speak voice">
+              <span class="speaker-icon">🔊</span>
+              <span class="voice-btn-txt" data-i18n="speakBtn">Тыңдау</span>
+            </button>
+            <button class="step-btn" id="btnMascotNext" style="display:none;">
+              <span data-i18n="nextHint">Келесі ➔</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode-Specific Sidebar Panels -->
+      <!-- PANEL 1: Learn Mode Controls -->
+      <div class="sidebar-panel mode-panel-learn" id="panelLearn">
+        <div class="section-title">
+          <span class="title-icon">🧭</span>
+          <h4 data-i18n="learnTitle">Геоконт сырлары</h4>
+        </div>
+        <div class="story-stepper" id="storyStepper">
+          <!-- Story chapters will be dynamically generated -->
+        </div>
+        <div class="learn-actions">
+          <button class="btn btn-primary" id="btnExploreRays">
+            <span>✨</span> <span data-i18n="btnShowRays">Сәулелерді жағу</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- PANEL 2: Tasks Mode Categories & Levels -->
+      <div class="sidebar-panel mode-panel-tasks" id="panelTasks" style="display:none;">
+        <div class="section-title">
+          <span class="title-icon">🏆</span>
+          <h4 data-i18n="tasksCategoryTitle">Тапсырмалар деңгейі</h4>
+        </div>
+
+        <!-- Level Difficulty Categories -->
+        <div class="task-categories">
+          <button class="category-btn active" data-cat="simple" id="catSimple">
+            <span class="cat-icon">🟢</span>
+            <span class="cat-title" data-i18n="catSimple">Жеңіл (Фигуралар)</span>
+          </button>
+          <button class="category-btn" data-cat="medium" id="catMedium">
+            <span class="cat-icon">🟡</span>
+            <span class="cat-title" data-i18n="catMedium">Орташа (Әріп, сан)</span>
+          </button>
+          <button class="category-btn" data-cat="national" id="catNational">
+            <span class="cat-icon">🦅</span>
+            <span class="cat-title" data-i18n="catNational">Ұлттық (Ою-өрнек)</span>
+          </button>
+        </div>
+
+        <!-- Level List Grid -->
+        <div class="levels-grid" id="levelsGrid">
+          <!-- Populated via JS -->
+        </div>
+
+        <!-- Current Target Card -->
+        <div class="target-card" id="targetCard">
+          <div class="target-card-header">
+            <div class="target-header-left">
+              <span class="target-badge" id="targetLevelBadge">Деңгей 1</span>
+              <span class="target-name" id="targetLevelName">Үшбұрыш</span>
+            </div>
+            <button class="icon-btn icon-btn-small" id="btnSpeakLevel" title="Тапсырманы дауыстап оқу / Озвучить задание" aria-label="Listen task">
+              <span>🔊</span>
+            </button>
+          </div>
+          <div class="target-cipher-row">
+            <span class="cipher-lbl" data-i18n="targetCipherLabel">Шифр:</span>
+            <div class="cipher-chips" id="cipherChips">
+              <!-- Dynamically populated interactive step chips with ray colors -->
+            </div>
+          </div>
+          <div class="target-preview-box">
+            <canvas id="targetPreviewCanvas" width="130" height="130"></canvas>
+            <div class="target-guide-text" id="targetGuideText">
+              Нүктелерді кезекпен қос!
+            </div>
+          </div>
+          <div class="target-btn-row">
+            <button class="btn btn-hint" id="btnHint">
+              <span>💡</span> <span data-i18n="hintBtn">Көмек</span>
+            </button>
+            <button class="btn btn-ghost-toggle active" id="btnToggleGhost" title="Тақтадағы сұлба-көмекшіні қосу/өшіру">
+              <span>👁️</span> <span data-i18n="ghostBtn">Сұлба</span>
+            </button>
+            <button class="btn btn-success" id="btnCheck">
+              <span>✅</span> <span data-i18n="checkBtn">Тексеру</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 3: Free Mode Presets & Gallery -->
+      <div class="sidebar-panel mode-panel-free" id="panelFree" style="display:none;">
+        <div class="section-title">
+          <span class="title-icon">🌟</span>
+          <h4 data-i18n="freeIdeasTitle">Шабыт сызбалары</h4>
+        </div>
+        <p class="free-desc" data-i18n="freeIdeasDesc">Қалаған резеңкеңді таңдап, өз қиялыңдағы ғажайып суреттерді сал немесе мысалдарды пайдалан:</p>
+        <div class="presets-list" id="presetsList">
+          <!-- Preset figures child can load -->
+        </div>
+        <div class="free-stats">
+          <span data-i18n="bandsCountLabel">Тартылған резинкалар:</span> <strong id="bandsCount">0</strong>
+        </div>
+      </div>
+
+      <!-- Ethno-pedagogy fact snippet -->
+      <div class="ethno-note-card">
+        <div class="ethno-note-icon">🇰🇿</div>
+        <div class="ethno-note-content">
+          <h5 id="ethnoNoteTitle" data-i18n="ethnoTitle">Білгенге маржан</h5>
+          <p id="ethnoNoteText" data-i18n="ethnoText">«Қошқар мүйіз» оюы — қазақ халқының ең ежелгі оюларының бірі. Ол молшылық пен күш-қуатты бейнелейді.</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center Interactive Geoboard Canvas Area -->
+    <section class="board-section">
+      <!-- Top Board Toolbar -->
+      <div class="board-toolbar">
+        <!-- Color Palette -->
+        <div class="color-palette-group" role="radiogroup" aria-label="Rubber band color">
+          <span class="palette-lbl" data-i18n="bandColorLabel">Түсі:</span>
+          <div class="palette-buttons">
+            <button class="color-btn color-red active" data-color="#EF4444" title="Қызыл / Красный" aria-label="Red"></button>
+            <button class="color-btn color-gold" data-color="#F59E0B" title="Алтын / Золотой" aria-label="Gold"></button>
+            <button class="color-btn color-green" data-color="#10B981" title="Жасыл / Зеленый" aria-label="Green"></button>
+            <button class="color-btn color-sky" data-color="#0284C7" title="Көгілдір / Голубой" aria-label="Sky"></button>
+            <button class="color-btn color-blue" data-color="#3B82F6" title="Көк / Синий" aria-label="Blue"></button>
+            <button class="color-btn color-purple" data-color="#8B5CF6" title="Күлгін / Фиолетовый" aria-label="Purple"></button>
+            <button class="color-btn color-kazakh" data-color="#00AFCA" title="Қазақ көгі / Национальный" aria-label="Kazakh Cyan"></button>
+          </div>
+        </div>
+
+        <!-- Action Tools -->
+        <div class="tool-actions-group">
+          <button class="tool-btn" id="btnUndo" title="Болдырмау / Отменить шаг" aria-label="Undo">
+            <span class="tool-icon">↩️</span>
+            <span class="tool-txt" data-i18n="btnUndo">Болдырмау</span>
+          </button>
+          <button class="tool-btn" id="btnFinishBand" title="Резинканы аяқтау / Замкнуть резинку" aria-label="Complete Band">
+            <span class="tool-icon">➰</span>
+            <span class="tool-txt" data-i18n="btnFinishBand">Бекіту</span>
+          </button>
+          <button class="tool-btn" id="btnClearBoard" title="Тақтаны тазалау / Очистить всё" aria-label="Clear All">
+            <span class="tool-icon">🗑️</span>
+            <span class="tool-txt" data-i18n="btnClear">Тазалау</span>
+          </button>
+          <button class="tool-btn btn-export" id="btnExportImage" title="Сурет ретінде сақтау / Скачать PNG" aria-label="Export PNG">
+            <span class="tool-icon">📸</span>
+            <span class="tool-txt" data-i18n="btnSaveImage">Сақтау</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Geokont Canvas Viewport -->
+      <div class="canvas-viewport" id="canvasViewport">
+        <!-- Interactive Canvas for touch & mouse -->
+        <canvas id="geokontCanvas"></canvas>
+
+        <!-- Dynamic Floating Coordinate HUD -->
+        <div class="hover-peg-badge" id="hoverPegBadge" style="display:none;">К3</div>
+
+        <!-- Interactive Band Drawing Indicator -->
+        <div class="drawing-status-pill" id="drawingStatusPill" style="display:none;">
+          <span class="dot-pulse"></span>
+          <span id="drawingStatusText">Нүктені таңдаңыз</span>
+        </div>
+      </div>
+
+      <!-- Bottom Hint & Helper Legend -->
+      <div class="board-legend-bar">
+        <div class="legend-rays">
+          <span class="legend-title" data-i18n="raysTitle">8 Сәуле (Радуга Воскобовича):</span>
+          <div class="ray-chips-list">
+            <span class="ray-chip chip-k" data-ray="К" title="Қызыл / Красный">К (Қызыл)</span>
+            <span class="ray-chip chip-o" data-ray="О" title="Қызғылт сары / Оранжевый">О (Оранжевый)</span>
+            <span class="ray-chip chip-j" data-ray="Ж" title="Сары / Желтый">Ж (Сары)</span>
+            <span class="ray-chip chip-z" data-ray="З" title="Жасыл / Зеленый">З (Жасыл)</span>
+            <span class="ray-chip chip-g" data-ray="Г" title="Көгілдір / Голубой">Г (Көгілдір)</span>
+            <span class="ray-chip chip-s" data-ray="С" title="Көк / Синий">С (Көк)</span>
+            <span class="ray-chip chip-f" data-ray="Ф" title="Күлгін / Фиолетовый">Ф (Фиолетовый)</span>
+            <span class="ray-chip chip-b" data-ray="Б" title="Ақ / Белый">Б (Ақ)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Celebration Modal (Confetti + Fanfare) -->
+  <div class="modal-overlay" id="celebrationModal" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-confetti-canvas-wrap">
+        <canvas id="confettiCanvas"></canvas>
+      </div>
+      <div class="modal-stars-row">
+        <span class="star-pop">⭐</span>
+        <span class="star-pop star-delay-1">🌟</span>
+        <span class="star-pop star-delay-2">⭐</span>
+      </div>
+      <h2 class="modal-title" id="celebrationTitle">Жарайсың! Өте жақсы!</h2>
+      <p class="modal-message" id="celebrationMessage">Сен фигураны дұрыс құрастырдың!</p>
+      <div class="ornament-divider">
+        <svg viewBox="0 0 200 24" class="divider-svg">
+          <path d="M10 12 Q50 0 100 12 Q150 24 190 12" stroke="#F59E0B" stroke-width="3" fill="none" />
+          <circle cx="100" cy="12" r="6" fill="#0284C7" />
+        </svg>
+      </div>
+      <div class="modal-buttons-row">
+        <button class="btn btn-secondary" id="btnRepeatLevel">
+          <span>🔄</span> <span data-i18n="repeatBtn">Қайталау</span>
+        </button>
+        <button class="btn btn-primary" id="btnNextLevel">
+          <span>🚀</span> <span data-i18n="nextLevelBtn">Келесі деңгей</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Dialog Modal -->
+  <div class="modal-overlay" id="exportModal" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-card export-card">
+      <h3 class="modal-title" data-i18n="exportTitle">Өз туындыңды сақта!</h3>
+      <p class="modal-message" data-i18n="exportPrompt">Суретке есіміңді жаз және естелік ретінде жүктеп ал:</p>
+      <div class="export-input-wrap">
+        <label for="childNameInput" data-i18n="childNameLabel">Жас шебердің есімі:</label>
+        <input type="text" id="childNameInput" placeholder="Мысалы: Айзере, Әлихан, Алишер..." maxlength="30" value="Жас өнертапқыш">
+      </div>
+      <div class="export-preview-container">
+        <img id="exportImgPreview" alt="Geokont preview" />
+      </div>
+      <div class="modal-buttons-row">
+        <button class="btn btn-secondary" id="btnCancelExport" data-i18n="cancelBtn">Жабу</button>
+        <button class="btn btn-primary" id="btnConfirmDownload" data-i18n="downloadBtn">📥 Жүктеп алу</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
