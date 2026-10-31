@@ -254,7 +254,7 @@ class SoundSynthesizer {
     const melodyPattern = [0, 2, 4, 3, 1, 4, 2, 5, 3, 2, 4, 0];
 
     this.musicInterval = setInterval(() => {
-      if (!this.musicEnabled || !this.ctx) return;
+      if (!this.musicEnabled || !this.soundEnabled || !this.ctx) return;
       const noteIdx = melodyPattern[this.musicStep % melodyPattern.length];
       const freq = pentatonic[noteIdx];
       this.musicStep++;
@@ -536,6 +536,10 @@ class GeokontGame {
 
     // High Contrast State
     this.isHighContrast = false;
+    this.loadSettings();
+
+    // Клавиатура: точка, на которой стоит курсор поля
+    this.keyboardPeg = null;
 
     // Браузер загружает голоса не сразу: запрашиваем заранее, чтобы первая озвучка уже выбрала хороший голос
     if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
@@ -543,8 +547,133 @@ class GeokontGame {
     this.initDOM();
     this.initEvents();
     this.resizeCanvas();
+    this.applySettingsUI();
     this.updateLanguageUI();
+    this.initAccessibility();
     this.render();
+
+    // Поле рисует подписи на холсте, поэтому перерисовываем его, когда шрифт загрузится
+    if (document.fonts) {
+      Promise.all(['Қ', 'Я', 'K'].map(ch => document.fonts.load("bold 16px 'Nunito'", ch)))
+        .then(() => this.render())
+        .catch(() => {});
+    }
+  }
+
+  // Язык, контраст и звук сохраняются между запусками
+  loadSettings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('geokont_settings') || '{}');
+      if (saved.lang === 'kk' || saved.lang === 'ru') this.currentLang = saved.lang;
+      this.isHighContrast = saved.contrast === true;
+      this.sound.soundEnabled = saved.sound !== false;
+    } catch (e) { /* настройки останутся по умолчанию */ }
+  }
+
+  saveSettings() {
+    try {
+      localStorage.setItem('geokont_settings', JSON.stringify({
+        lang: this.currentLang,
+        contrast: this.isHighContrast,
+        sound: this.sound.soundEnabled
+      }));
+    } catch (e) { /* настройки просто не сохранятся между запусками */ }
+  }
+
+  applySettingsUI() {
+    document.body.classList.toggle('contrast-mode', this.isHighContrast);
+    document.getElementById('contrastToggle').setAttribute('aria-pressed', String(this.isHighContrast));
+    document.getElementById('soundIcon').textContent = this.sound.soundEnabled ? '🔔' : '🔕';
+    document.getElementById('soundToggle').setAttribute('aria-pressed', String(this.sound.soundEnabled));
+    document.getElementById('musicToggle').setAttribute('aria-pressed', 'false');
+    document.getElementById('btnLangKz').classList.toggle('active', this.currentLang === 'kk');
+    document.getElementById('btnLangRu').classList.toggle('active', this.currentLang === 'ru');
+  }
+
+  // ------------------------------------------------------------------------
+  // Доступность: диктор, клавиатура, окна
+  // ------------------------------------------------------------------------
+  initAccessibility() {
+    // Состояние кнопок для диктора всегда повторяет их подсветку
+    const syncStates = () => {
+      document.querySelectorAll('.nav-tab, .lang-btn, .category-btn, .level-chip, .story-step-item, #btnToggleGhost').forEach(el => {
+        el.setAttribute('aria-pressed', String(el.classList.contains('active')));
+      });
+      document.querySelectorAll('.color-btn').forEach(el => {
+        el.setAttribute('role', 'radio');
+        el.setAttribute('aria-checked', String(el.classList.contains('active')));
+      });
+    };
+    syncStates();
+    new MutationObserver(syncStates).observe(document.body, {
+      subtree: true, childList: true, attributes: true, attributeFilter: ['class']
+    });
+
+    document.addEventListener('keydown', (e) => {
+      const openModal = [...document.querySelectorAll('.modal-overlay')].find(m => m.style.display === 'flex');
+      if (openModal) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          this.hideModal(openModal.id);
+        } else if (e.key === 'Tab') {
+          // Фокус не выходит за пределы открытого окна
+          const items = [...openModal.querySelectorAll('button, input')];
+          const first = items[0];
+          const last = items[items.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+        return;
+      }
+      // Элементы с ролью кнопки нажимаются так же, как настоящие кнопки
+      const target = e.target;
+      if ((e.key === 'Enter' || e.key === ' ') && target.getAttribute && target.getAttribute('role') === 'button') {
+        e.preventDefault();
+        target.click();
+      }
+    });
+  }
+
+  showModal(id) {
+    const modal = document.getElementById(id);
+    this.modalReturnFocus = document.activeElement;
+    modal.style.display = 'flex';
+    const firstFocus = modal.querySelector('input') || modal.querySelector('.btn-primary');
+    if (firstFocus) firstFocus.focus();
+  }
+
+  hideModal(id) {
+    document.getElementById(id).style.display = 'none';
+    if (this.modalReturnFocus && document.contains(this.modalReturnFocus)) {
+      this.modalReturnFocus.focus();
+    }
+    this.modalReturnFocus = null;
+  }
+
+  // Следующая точка в направлении стрелки: ближайшая из лежащих примерно в ту сторону
+  findPegInDirection(fromId, dx, dy) {
+    const from = this.pegs.get(fromId);
+    let best = null;
+    let bestScore = Infinity;
+    this.pegs.forEach(peg => {
+      if (peg.id === fromId) return;
+      const vx = peg.x - from.x;
+      const vy = peg.y - from.y;
+      const dist = Math.hypot(vx, vy);
+      const alignment = (vx * dx + vy * dy) / dist;
+      if (alignment < 0.5) return;
+      const score = dist * (2 - alignment);
+      if (score < bestScore) {
+        bestScore = score;
+        best = peg;
+      }
+    });
+    return best;
   }
 
   // ------------------------------------------------------------------------
@@ -567,6 +696,8 @@ class GeokontGame {
     document.getElementById('contrastToggle').addEventListener('click', () => {
       this.isHighContrast = !this.isHighContrast;
       document.body.classList.toggle('contrast-mode', this.isHighContrast);
+      document.getElementById('contrastToggle').setAttribute('aria-pressed', String(this.isHighContrast));
+      this.saveSettings();
       this.render();
       if (this.currentMode === 'tasks') this.renderPreview();
     });
@@ -575,6 +706,8 @@ class GeokontGame {
     document.getElementById('soundToggle').addEventListener('click', () => {
       this.sound.soundEnabled = !this.sound.soundEnabled;
       document.getElementById('soundIcon').textContent = this.sound.soundEnabled ? '🔔' : '🔕';
+      document.getElementById('soundToggle').setAttribute('aria-pressed', String(this.sound.soundEnabled));
+      this.saveSettings();
       if (this.sound.soundEnabled) this.sound.playSnap();
     });
 
@@ -582,6 +715,7 @@ class GeokontGame {
       const isPlaying = this.sound.toggleMusic();
       document.getElementById('musicIcon').textContent = isPlaying ? '🎶' : '🎵';
       document.getElementById('musicToggle').style.background = isPlaying ? 'rgba(245, 158, 11, 0.3)' : '';
+      document.getElementById('musicToggle').setAttribute('aria-pressed', String(isPlaying));
     });
 
     // Color Palette
@@ -655,18 +789,18 @@ class GeokontGame {
 
     // Celebration modal buttons
     document.getElementById('btnRepeatLevel').addEventListener('click', () => {
-      document.getElementById('celebrationModal').style.display = 'none';
+      this.hideModal('celebrationModal');
       this.clearAll();
     });
 
     document.getElementById('btnNextLevel').addEventListener('click', () => {
-      document.getElementById('celebrationModal').style.display = 'none';
+      this.hideModal('celebrationModal');
       this.goToNextLevel();
     });
 
     // Export Modal Buttons
     document.getElementById('btnCancelExport').addEventListener('click', () => {
-      document.getElementById('exportModal').style.display = 'none';
+      this.hideModal('exportModal');
     });
 
     document.getElementById('btnConfirmDownload').addEventListener('click', () => {
@@ -870,6 +1004,38 @@ class GeokontGame {
       clearHover();
       handleEnd(pos);
     }, { passive: false });
+
+    // Клавиатура: стрелки двигают курсор по точкам, Enter и пробел работают как нажатие
+    this.canvas.addEventListener('focus', () => {
+      if (!this.keyboardPeg) this.keyboardPeg = 'О';
+      this.render();
+    });
+
+    this.canvas.addEventListener('blur', () => {
+      this.keyboardPeg = null;
+      this.render();
+    });
+
+    this.canvas.addEventListener('keydown', (e) => {
+      const directions = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+      if (directions[e.key]) {
+        e.preventDefault();
+        const next = this.findPegInDirection(this.keyboardPeg || 'О', ...directions[e.key]);
+        if (next) {
+          this.keyboardPeg = next.id;
+          document.getElementById('boardAnnouncer').textContent = next.id;
+          this.render();
+        }
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const peg = this.pegs.get(this.keyboardPeg || 'О');
+        handleStart({ x: peg.x, y: peg.y });
+        handleEnd({ x: peg.x, y: peg.y });
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        this.undoStep();
+      }
+    });
 
     // Система может прервать касание (жест, уведомление) — резинка не должна остаться «прилипшей»
     this.canvas.addEventListener('touchcancel', () => {
@@ -1199,6 +1365,20 @@ class GeokontGame {
 
     // Штырьки (Колышки с объемным 3D эффектом и маяками)
     this.renderPegs(ctx);
+
+    // Курсор клавиатуры
+    if (this.keyboardPeg && !this.isExporting) {
+      const p = this.pegs.get(this.keyboardPeg);
+      if (p) {
+        ctx.save();
+        ctx.strokeStyle = this.isHighContrast ? '#FBBF24' : '#1D4ED8';
+        ctx.lineWidth = Math.max(3, this.radius * 0.012);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.hitR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
 
     // Подсветка подсказки для задания
     if (this.hintHighlightedPeg && !this.isExporting) {
@@ -1590,7 +1770,7 @@ class GeokontGame {
     ];
 
     container.innerHTML = steps.map(s => `
-      <div class="story-step-item ${s.num === this.storyStep ? 'active' : ''}" data-step="${s.num}">
+      <div class="story-step-item ${s.num === this.storyStep ? 'active' : ''}" data-step="${s.num}" role="button" tabindex="0">
         <div class="step-num">${s.num}</div>
         <div class="step-content">
           <strong>${this.currentLang === 'kk' ? s.titleKk : s.titleRu}</strong>
@@ -1644,10 +1824,12 @@ class GeokontGame {
     grid.innerHTML = levels.map((lvl, idx) => {
       const isDone = this.completedLevels.has(lvl.id);
       const isActive = idx === this.currentLevelIndex;
+      const levelWord = this.currentLang === 'kk' ? 'Деңгей' : 'Уровень';
+      const doneWord = this.currentLang === 'kk' ? 'орындалды' : 'пройден';
       return `
-        <div class="level-chip ${isActive ? 'active' : ''} ${isDone ? 'completed' : ''}" data-idx="${idx}">
+        <button type="button" class="level-chip ${isActive ? 'active' : ''} ${isDone ? 'completed' : ''}" data-idx="${idx}" aria-label="${levelWord} ${idx + 1}${isDone ? ', ' + doneWord : ''}">
           <span>${idx + 1}</span>
-        </div>
+        </button>
       `;
     }).join('');
 
@@ -1894,8 +2076,6 @@ class GeokontGame {
   }
 
   showCelebrationModal(isFinale = false) {
-    const modal = document.getElementById('celebrationModal');
-    modal.style.display = 'flex';
     this.isFinaleShown = isFinale;
 
     const total = Object.values(LEVELS_DB).flat().length;
@@ -1920,6 +2100,7 @@ class GeokontGame {
       ? (kk ? "Еркін шығармашылыққа өту" : "Перейти к творчеству")
       : this.t('nextLevelBtn');
 
+    this.showModal('celebrationModal');
     this.launchConfetti();
   }
 
@@ -1957,6 +2138,7 @@ class GeokontGame {
   }
 
   launchConfetti() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const cCanvas = document.getElementById('confettiCanvas');
     const cCtx = cCanvas.getContext('2d');
     cCanvas.width = 440;
@@ -2043,8 +2225,7 @@ class GeokontGame {
   // ЭКСПОРТ РИСУНКА В PNG С КАЗАХСКИМ ОРНАМЕНТАЛЬНЫМ ОБРАМЛЕНИЕМ
   // ------------------------------------------------------------------------
   openExportModal() {
-    const exportModal = document.getElementById('exportModal');
-    exportModal.style.display = 'flex';
+    this.showModal('exportModal');
     this.updateExportPreview();
   }
 
@@ -2145,7 +2326,7 @@ class GeokontGame {
     link.download = `Geokont_Tvorchestvo_${Date.now()}.png`;
     link.href = finalCanvas.toDataURL('image/png');
     link.click();
-    document.getElementById('exportModal').style.display = 'none';
+    this.hideModal('exportModal');
     this.sound.playFanfare();
   }
 
@@ -2207,6 +2388,7 @@ class GeokontGame {
     document.getElementById('btnLangKz').classList.toggle('active', lang === 'kk');
     document.getElementById('btnLangRu').classList.toggle('active', lang === 'ru');
 
+    this.saveSettings();
     this.updateLanguageUI();
   }
 
@@ -2220,6 +2402,9 @@ class GeokontGame {
       }
     });
 
+    this.canvas.setAttribute('aria-label', this.currentLang === 'kk'
+      ? "Геоконт тақтасы. Нүктені көрсеткілермен таңда, Enter пернесімен бас. Backspace соңғы қадамды болдырмайды."
+      : "Доска Геоконта. Выбирай точку стрелками, нажимай Enter. Backspace отменяет последний шаг.");
     document.getElementById('childNameInput').placeholder = this.currentLang === 'kk'
       ? "Мысалы: Айзере, Әлихан, Алишер..."
       : "Например: Айзере, Алихан, Алишер...";
@@ -2251,6 +2436,8 @@ class GeokontGame {
       const rayDef = RAYS_DEF.find(r => r.id === chip.dataset.ray);
       if (rayDef) {
         chip.textContent = `${rayDef.id} (${this.currentLang === 'kk' ? rayDef.nameKk : rayDef.nameRu})`;
+        chip.setAttribute('role', 'button');
+        chip.setAttribute('tabindex', '0');
       }
     });
   }

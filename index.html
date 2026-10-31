@@ -5,10 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ГЕОКОНТ | Балаларға арналған интерактивті геоборд | Интерактивный геоборд</title>
   <meta name="description" content="Республикалық балалар цифрлық жобалар байқауына арналған интерактивті геоконт (геоборд) ойыны. Этнопедагогика, қазақ оюлары, геометрия және кеңістіктік ойлау.">
-  <!-- Google Fonts: Inter & Comic-friendly Nunito for kids -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="theme-vibrant">
@@ -121,7 +117,7 @@
 
         <!-- Mascot Speech Bubble -->
         <div class="mascot-speech-bubble" id="mascotBubble">
-          <p id="mascotSpeechText">Сәлем, жас өнертапқыш! Мен Аланмын. Сиқырлы Геоконт әлеміне қош келдің!</p>
+          <p id="mascotSpeechText" aria-live="polite">Сәлем, жас өнертапқыш! Мен Аланмын. Сиқырлы Геоконт әлеміне қош келдің!</p>
           <div class="speech-audio-row">
             <button class="voice-btn" id="btnSpeakText" title="Мәтінді дауыстап оқу / Озвучить" aria-label="Speak voice">
               <span class="speaker-icon">🔊</span>
@@ -283,7 +279,8 @@
       <!-- Main Geokont Canvas Viewport -->
       <div class="canvas-viewport" id="canvasViewport">
         <!-- Interactive Canvas for touch & mouse -->
-        <canvas id="geokontCanvas"></canvas>
+        <canvas id="geokontCanvas" tabindex="0" role="application"></canvas>
+        <div class="sr-only" id="boardAnnouncer" aria-live="polite"></div>
 
         <!-- Dynamic Floating Coordinate HUD -->
         <div class="hover-peg-badge" id="hoverPegBadge" style="display:none;">К3</div>
@@ -315,7 +312,7 @@
   </main>
 
   <!-- Celebration Modal (Confetti + Fanfare) -->
-  <div class="modal-overlay" id="celebrationModal" style="display:none;" role="dialog" aria-modal="true">
+  <div class="modal-overlay" id="celebrationModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="celebrationTitle">
     <div class="modal-card">
       <div class="modal-confetti-canvas-wrap">
         <canvas id="confettiCanvas"></canvas>
@@ -345,9 +342,9 @@
   </div>
 
   <!-- Export Dialog Modal -->
-  <div class="modal-overlay" id="exportModal" style="display:none;" role="dialog" aria-modal="true">
+  <div class="modal-overlay" id="exportModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
     <div class="modal-card export-card">
-      <h3 class="modal-title" data-i18n="exportTitle">Өз туындыңды сақта!</h3>
+      <h3 class="modal-title" id="exportModalTitle" data-i18n="exportTitle">Өз туындыңды сақта!</h3>
       <p class="modal-message" data-i18n="exportPrompt">Суретке есіміңді жаз және естелік ретінде жүктеп ал:</p>
       <div class="export-input-wrap">
         <label for="childNameInput" data-i18n="childNameLabel">Жас шебердің есімі:</label>
