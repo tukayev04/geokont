@@ -29,9 +29,9 @@ const I18N = {
     learnTitle: "Геоконт сырлары",
     btnShowRays: "Сәулелерді жағу",
     tasksCategoryTitle: "Тапсырмалар деңгейі",
-    catSimple: "🟢 Жеңіл (Фигуралар)",
-    catMedium: "🟡 Орташа (Әріп, сан)",
-    catNational: "🦅 Ұлттық (Ою-өрнек)",
+    catSimple: "Жеңіл (Фигуралар)",
+    catMedium: "Орташа (Әріп, сан)",
+    catNational: "Ұлттық (Ою-өрнек)",
     targetCipherLabel: "Шифр:",
     hintBtn: "Көмек",
     checkBtn: "Тексеру",
@@ -78,9 +78,9 @@ const I18N = {
     learnTitle: "Секреты Геоконта",
     btnShowRays: "Зажечь лучи",
     tasksCategoryTitle: "Категории заданий",
-    catSimple: "🟢 Простые (Фигуры)",
-    catMedium: "🟡 Средние (Буквы, цифры)",
-    catNational: "🦅 Национальные (Орнаменты)",
+    catSimple: "Простые (Фигуры)",
+    catMedium: "Средние (Буквы, цифры)",
+    catNational: "Национальные (Орнаменты)",
     targetCipherLabel: "Шифр:",
     hintBtn: "Подсказка",
     checkBtn: "Проверить",
@@ -339,7 +339,7 @@ const LEVELS_DB = {
       id: "m1",
       nameKk: "«А» әрпі",
       nameRu: "Буква «А»",
-      cipher: ["С4", "К4", "З4", "З2", "С2", "З2"],
+      cipher: ["С4", "К4", "З4", "З2", "С2"],
       descKk: "Әліпбидің алғашқы әрпі — А әрпін құрастыр!",
       descRu: "Построй первую букву азбуки — красавицу «А»!",
       factKk: "«А» әрпінен ана, ата, алтын сөздері басталады.",
@@ -361,18 +361,18 @@ const LEVELS_DB = {
       id: "m3",
       nameKk: "«4» цифры",
       nameRu: "Цифра «4»",
-      cipher: ["К4", "Ф3", "Ж3", "Г4"],
-      descKk: "К4-тен солға Ф3, оңға Ж3 және тік төмен Г4!",
-      descRu: "Сверху вниз и вправо, затем вертикальная линия!",
+      cipher: ["Ж3", "Ф3", "К4", "Г4"],
+      descKk: "Ж3-тен солға Ф3-ке, жоғары К4-ке, одан тік төмен Г4-ке тарт!",
+      descRu: "От Ж3 влево к Ф3, вверх к К4 и прямо вниз до Г4!",
       factKk: "Дүниенің төрт бұрышы: Солтүстік, Оңтүстік, Шығыс, Батыс.",
       factRu: "Четыре стороны света: Север, Юг, Восток и Запад.",
       defaultColor: "#8B5CF6"
     },
     {
       id: "m4",
-      nameKk: "Күн сағаты",
+      nameKk: "Құм сағаты",
       nameRu: "Песочные часы",
-      cipher: ["Ф4", "Ж4", "Ф2", "Ж2", "Ф4"],
+      cipher: ["Б4", "О4", "С4", "З4", "Б4"],
       descKk: "Құм сағаты сияқты айқасқан фигура жаса!",
       descRu: "Построй фигуру перекрещенных песочных часов!",
       factKk: "Уақыт — адам өміріндегі ең құнды байлық.",
@@ -513,8 +513,14 @@ class GeokontGame {
     // Level State (Tasks Mode)
     this.currentCategory = 'simple';
     this.currentLevelIndex = 0;
-    this.completedLevels = new Set(JSON.parse(localStorage.getItem('geokont_completed_levels') || '[]'));
+    // localStorage может быть недоступен (приватный режим, запрет cookies) — игра не должна падать
+    let savedLevels = [];
+    try {
+      savedLevels = JSON.parse(localStorage.getItem('geokont_completed_levels') || '[]');
+    } catch (e) { savedLevels = []; }
+    this.completedLevels = new Set(Array.isArray(savedLevels) ? savedLevels : []);
     this.hintHighlightedPeg = null;
+    this.hintTimer = null;
     this.showGhostGuide = true; // Сұлба-көмекші на доске
 
     // Learn Mode Story Steps
@@ -831,6 +837,10 @@ class GeokontGame {
 
     this.canvas.width = size * dpr;
     this.canvas.height = size * dpr;
+    // CSS-размер фиксируем отдельно, иначе при масштабе Windows 125–150% (dpr > 1)
+    // холст становится больше окна и края поля обрезаются
+    this.canvas.style.width = `${size}px`;
+    this.canvas.style.height = `${size}px`;
     this.width = this.canvas.width;
     this.height = this.canvas.height;
 
@@ -1461,6 +1471,9 @@ class GeokontGame {
 
   selectStoryStep(stepNum) {
     this.sound.playPluck(460);
+    // Каждый шаг начинается с чистого поля без подсветок предыдущего шага
+    this.hintHighlightedPeg = null;
+    this.highlightRays = false;
     if (stepNum === 1) {
       this.setMascotText(this.t('mascotWelcome'));
       this.highlightRays = false;
@@ -1506,14 +1519,18 @@ class GeokontGame {
     });
   }
 
-  loadCurrentLevel() {
+  // keepBoard = true — только обновить тексты (например, при смене языка), не стирая работу ребенка
+  loadCurrentLevel(keepBoard = false) {
     const levels = LEVELS_DB[this.currentCategory];
     const lvl = levels[this.currentLevelIndex];
     if (!lvl) return;
 
-    // Сброс текущей доски для чистоты задания
-    this.clearAll();
-    this.activeColor = lvl.defaultColor || '#EF4444';
+    if (!keepBoard) {
+      // Сброс текущей доски для чистоты задания
+      this.clearAll();
+      this.activeColor = lvl.defaultColor || '#EF4444';
+      this.syncPaletteUI();
+    }
 
     // Обновление карточки задания
     document.getElementById('targetLevelBadge').textContent = `${this.currentLang === 'kk' ? 'Деңгей' : 'Уровень'} ${this.currentLevelIndex + 1}`;
@@ -1625,7 +1642,9 @@ class GeokontGame {
     if (isMatched) {
       this.sound.playFanfare();
       this.completedLevels.add(lvl.id);
-      localStorage.setItem('geokont_completed_levels', JSON.stringify([...this.completedLevels]));
+      try {
+        localStorage.setItem('geokont_completed_levels', JSON.stringify([...this.completedLevels]));
+      } catch (e) { /* прогресс просто не сохранится между сессиями */ }
       this.renderCategoryLevels();
       this.showCelebrationModal();
     } else if (showFailureAlert) {
@@ -1637,6 +1656,15 @@ class GeokontGame {
   // Сравнение полигонов с учетом циклического сдвига и реверса
   isPolygonMatching(bandA, bandB) {
     if (!bandA || !bandB) return false;
+
+    // Незамкнутая линия (буква, цифра): циклический сдвиг рисует другую фигуру,
+    // поэтому допускаем только точное совпадение или обратный порядок
+    const isClosedB = bandB.length > 2 && bandB[0] === bandB[bandB.length - 1];
+    if (!isClosedB) {
+      const same = (x, y) => x.length === y.length && x.every((v, i) => v === y[i]);
+      return same(bandA, bandB) || same(bandA, [...bandB].reverse());
+    }
+
     // Очистим замыкающий дубль, если он равен началу
     const cleanA = (bandA[0] === bandA[bandA.length - 1] && bandA.length > 2) ? bandA.slice(0, -1) : [...bandA];
     const cleanB = (bandB[0] === bandB[bandB.length - 1] && bandB.length > 2) ? bandB.slice(0, -1) : [...bandB];
@@ -1693,7 +1721,9 @@ class GeokontGame {
       : `Подсказка: следующая точка — «${nextPeg}»!`);
     this.render();
 
-    setTimeout(() => {
+    // Сбрасываем прошлый таймер, иначе старая подсказка гасит новую раньше времени
+    clearTimeout(this.hintTimer);
+    this.hintTimer = setTimeout(() => {
       this.hintHighlightedPeg = null;
       this.render();
     }, 3500);
@@ -1722,6 +1752,10 @@ class GeokontGame {
       if (this.currentCategory === 'simple') this.currentCategory = 'medium';
       else if (this.currentCategory === 'medium') this.currentCategory = 'national';
       this.currentLevelIndex = 0;
+      // Подсвечиваем новую категорию в боковой панели
+      document.querySelectorAll('.category-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.cat === this.currentCategory);
+      });
     }
     this.renderCategoryLevels();
     this.loadCurrentLevel();
@@ -1904,6 +1938,11 @@ class GeokontGame {
     this.currentMode = mode;
     this.sound.playPluck(400);
 
+    // Подсветка из режима обучения не должна «переезжать» в задания и творчество
+    clearTimeout(this.hintTimer);
+    this.hintHighlightedPeg = null;
+    this.highlightRays = false;
+
     // Обновление табов
     document.querySelectorAll('.nav-tab').forEach(b => {
       b.classList.toggle('active', b.dataset.mode === mode);
@@ -1948,9 +1987,11 @@ class GeokontGame {
     this.initLearnStoryStepper();
     this.renderFreePresets();
 
+    this.renderRayLegend();
+
     if (this.currentMode === 'tasks') {
       this.renderCategoryLevels();
-      this.loadCurrentLevel();
+      this.loadCurrentLevel(true);
     } else if (this.currentMode === 'learn') {
       this.setMascotText(this.t('mascotWelcome'));
     } else {
@@ -1960,6 +2001,23 @@ class GeokontGame {
 
   t(key) {
     return I18N[this.currentLang][key] || key;
+  }
+
+  // Подписи легенды лучей на текущем языке (раньше часть была только по-русски)
+  renderRayLegend() {
+    document.querySelectorAll('.ray-chip').forEach(chip => {
+      const rayDef = RAYS_DEF.find(r => r.id === chip.dataset.ray);
+      if (rayDef) {
+        chip.textContent = `${rayDef.id} (${this.currentLang === 'kk' ? rayDef.nameKk : rayDef.nameRu})`;
+      }
+    });
+  }
+
+  // Подсветка выбранного цвета в палитре совпадает с activeColor
+  syncPaletteUI() {
+    document.querySelectorAll('.color-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.color === this.activeColor);
+    });
   }
 
   setMascotText(txt) {
