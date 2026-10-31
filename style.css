@@ -406,6 +406,7 @@ input {
   color: var(--text-muted);
   transition: all var(--transition-fast);
   white-space: nowrap;
+  min-height: 44px;
 }
 
 .nav-tab .tab-icon {
@@ -453,6 +454,9 @@ body.contrast-mode .nav-tab.active {
   color: var(--text-main);
   transition: all var(--transition-bounce);
   min-height: 40px;
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
 }
 
 .icon-btn:hover {
@@ -490,6 +494,8 @@ body.contrast-mode .nav-tab.active {
   font-weight: 900;
   color: var(--text-muted);
   transition: all var(--transition-fast);
+  min-height: 44px;
+  padding: 6px 14px;
 }
 
 .lang-btn.active {
@@ -607,6 +613,7 @@ body.contrast-mode .nav-tab.active {
   font-size: 0.78rem;
   font-weight: 700;
   color: var(--kz-deep-blue);
+  font-size: 0.85rem;
 }
 
 .mascot-speech-bubble {
@@ -651,6 +658,9 @@ body.contrast-mode .nav-tab.active {
   font-weight: 800;
   transition: all var(--transition-bounce);
   box-shadow: 0 3px 8px rgba(2, 132, 199, 0.25);
+  min-height: 44px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
 }
 
 .voice-btn:hover, .step-btn:hover {
@@ -734,6 +744,7 @@ body.contrast-mode .nav-tab.active {
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.35;
+  font-size: 0.88rem;
 }
 
 /* Tasks Category Tabs */
@@ -741,6 +752,7 @@ body.contrast-mode .nav-tab.active {
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .category-btn {
@@ -756,6 +768,13 @@ body.contrast-mode .nav-tab.active {
   color: var(--text-main);
   text-align: left;
   transition: all var(--transition-fast);
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px;
+  min-height: 44px;
+  font-size: 0.8rem;
+  text-align: center;
 }
 
 .category-btn:hover {
@@ -793,6 +812,9 @@ body.contrast-mode .nav-tab.active {
   color: var(--text-muted);
   cursor: pointer;
   transition: all var(--transition-bounce);
+  min-height: 44px;
+  padding: 4px;
+  font-size: 0.95rem;
 }
 
 .level-chip:hover {
@@ -842,6 +864,7 @@ body.contrast-mode .nav-tab.active {
   color: #FFFFFF;
   padding: 2px 8px;
   border-radius: var(--radius-full);
+  font-size: 0.8rem;
 }
 
 .target-card-header {
@@ -865,6 +888,8 @@ body.contrast-mode .nav-tab.active {
   cursor: pointer;
   transition: all var(--transition-bounce);
   border: 1px solid rgba(2, 132, 199, 0.2);
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .icon-btn-small:hover {
@@ -958,12 +983,18 @@ body.contrast-mode .nav-tab.active {
   font-weight: 700;
   color: var(--text-muted);
   line-height: 1.35;
+  font-size: 0.85rem;
 }
 
 .target-btn-row {
   display: grid;
   grid-template-columns: 1fr 1fr 1.2fr;
   gap: 6px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: inherit;
+  padding: 4px 0;
 }
 
 .btn-ghost-toggle {
@@ -998,6 +1029,8 @@ body.contrast-mode .nav-tab.active {
   font-weight: 800;
   color: var(--text-main);
   transition: all var(--transition-fast);
+  min-height: 44px;
+  font-size: 0.85rem;
 }
 
 .preset-btn:hover {
@@ -1011,6 +1044,7 @@ body.contrast-mode .nav-tab.active {
   font-weight: 600;
   color: var(--text-muted);
   line-height: 1.35;
+  font-size: 0.85rem;
 }
 
 .free-stats {
@@ -1021,6 +1055,7 @@ body.contrast-mode .nav-tab.active {
   padding: 8px;
   border-radius: var(--radius-sm);
   text-align: center;
+  font-size: 0.85rem;
 }
 
 /* Ethno-pedagogy fact card */
@@ -1045,6 +1080,7 @@ body.contrast-mode .nav-tab.active {
   font-weight: 900;
   color: #92400E;
   margin-bottom: 2px;
+  font-size: 0.88rem;
 }
 
 .ethno-note-content p {
@@ -1052,6 +1088,7 @@ body.contrast-mode .nav-tab.active {
   font-weight: 700;
   color: #78350F;
   line-height: 1.35;
+  font-size: 0.82rem;
 }
 
 /* ==========================================================================
@@ -1100,6 +1137,7 @@ body.contrast-mode .board-toolbar {
   display: flex;
   align-items: center;
   gap: 6px;
+  gap: 8px;
 }
 
 .color-btn {
@@ -1110,6 +1148,16 @@ body.contrast-mode .board-toolbar {
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
   transition: all var(--transition-bounce);
   position: relative;
+  width: 38px;
+  height: 38px;
+}
+
+/* Кнопка выглядит на 38px, а палец попадает в 46px */
+.color-btn::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: var(--radius-full);
 }
 
 .color-btn:hover {
@@ -1150,6 +1198,8 @@ body.contrast-mode .board-toolbar {
   font-weight: 800;
   color: var(--text-main);
   transition: all var(--transition-fast);
+  min-height: 44px;
+  font-size: 0.85rem;
 }
 
 .tool-btn:hover {
@@ -1277,6 +1327,10 @@ body.contrast-mode .board-legend-bar {
   padding: 2px 7px;
   border-radius: 4px;
   color: #FFFFFF;
+  font-size: 0.8rem;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
 }
 
 .chip-k { background: #EF4444; }
@@ -1302,6 +1356,7 @@ body.contrast-mode .board-legend-bar {
   font-weight: 800;
   transition: all var(--transition-bounce);
   min-height: 42px;
+  min-height: 44px;
 }
 
 .btn:hover {
@@ -1588,8 +1643,72 @@ body.contrast-mode .board-legend-bar {
     display: none;
   }
   
+  .palette-buttons {
+    gap: 6px;
+  }
+
   .palette-buttons .color-btn {
-    width: 28px;
-    height: 28px;
+    width: 34px;
+    height: 34px;
+  }
+}
+
+/* Флаг Казахстана рисунком: на Windows эмодзи флага показывается буквами KZ */
+.flag-kz {
+  display: inline-block;
+  width: 1.5em;
+  height: 1em;
+  vertical-align: -0.12em;
+  border-radius: 2px;
+  margin-right: 3px;
+}
+
+.ethno-note-icon .flag-kz {
+  margin-right: 0;
+}
+
+/* Маскот мягко встряхивается, когда фигура собрана неверно */
+.mascot-speech-bubble.bubble-alert {
+  border-color: var(--kz-gold);
+  animation: bubbleShake 0.45s ease-in-out;
+}
+
+@keyframes bubbleShake {
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+/* Невысокие экраны ноутбуков: шифр и кнопки задания должны помещаться без прокрутки */
+@media (max-height: 820px) and (min-width: 821px) {
+  .mascot-card,
+  .sidebar-panel {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .mascot-avatar-wrap {
+    width: 52px;
+    height: 52px;
+  }
+
+  .mascot-speech-bubble {
+    min-height: 0;
+    padding: 8px 10px;
+  }
+
+  .speech-audio-row {
+    margin-top: 4px;
+  }
+
+  .target-card {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  #targetPreviewCanvas {
+    width: 84px;
+    height: 84px;
   }
 }

@@ -339,7 +339,7 @@ const LEVELS_DB = {
       id: "m1",
       nameKk: "«А» әрпі",
       nameRu: "Буква «А»",
-      cipher: ["С4", "К4", "З4", "З2", "С2"],
+      cipher: ["С4", "Ф2", "К4", "Ж2", "З4", "Ж2", "Ф2"],
       descKk: "Әліпбидің алғашқы әрпі — А әрпін құрастыр!",
       descRu: "Построй первую букву азбуки — красавицу «А»!",
       factKk: "«А» әрпінен ана, ата, алтын сөздері басталады.",
@@ -440,7 +440,7 @@ const RAYS_DEF = [
   { id: "Г", nameKk: "Көгілдір", nameRu: "Голубой", angleDeg: 90, color: "#06B6D4" },
   { id: "С", nameKk: "Көк", nameRu: "Синий", angleDeg: 135, color: "#3B82F6" },
   { id: "Ф", nameKk: "Күлгін", nameRu: "Фиолетовый", angleDeg: 180, color: "#8B5CF6" },
-  { id: "Б", nameKk: "Ақ", nameRu: "Белый", angleDeg: 225, color: "#E2E8F0" }
+  { id: "Б", nameKk: "Ақ", nameRu: "Белый", angleDeg: 225, color: "#94A3B8" }
 ];
 
 // Пресеты для свободного творчества
@@ -959,7 +959,7 @@ class GeokontGame {
       this.render();
 
       if (this.currentMode === 'tasks') {
-        this.checkTaskSolution(false); // Мягкая автопроверка
+        this.checkTaskSolution(); // Автопроверка: ребенок сразу узнает, получилась ли фигура
       }
     } else {
       this.currentBand = [];
@@ -1267,7 +1267,7 @@ class GeokontGame {
       const angle = (112.5 * Math.PI) / 180;
       const rx = this.centerX + Math.cos(angle) * ringDist;
       const ry = this.centerY + Math.sin(angle) * ringDist;
-      const tagR = Math.max(9, this.radius * 0.026);
+      const tagR = Math.max(11, this.radius * 0.03);
 
       ctx.save();
       ctx.beginPath();
@@ -1416,7 +1416,7 @@ class GeokontGame {
       }
 
       // Текстовая подпись координат (К1, К2, О1...)
-      const fontSize = Math.max(11, basePegR * 0.95);
+      const fontSize = Math.max(13, this.radius * 0.05);
       ctx.font = `bold ${fontSize}px 'Nunito', sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -1597,10 +1597,8 @@ class GeokontGame {
     }
 
     // Сообщение Барсенка Алана
-    const prompt = this.currentLang === 'kk'
-      ? `Шифр: ${lvl.cipher.join(' ➔ ')}. ${lvl.descKk}`
-      : `Шифр: ${lvl.cipher.join(' ➔ ')}. ${lvl.descRu}`;
-    this.setMascotText(prompt);
+    // Сам шифр уже показан в карточке задания, поэтому маскот его не повторяет
+    this.setMascotText(this.currentLang === 'kk' ? lvl.descKk : lvl.descRu);
 
     this.renderPreview();
   }
@@ -1694,15 +1692,21 @@ class GeokontGame {
 
     if (isMatched) {
       this.sound.playFanfare();
+      const isNewCompletion = !this.completedLevels.has(lvl.id);
       this.completedLevels.add(lvl.id);
       try {
         localStorage.setItem('geokont_completed_levels', JSON.stringify([...this.completedLevels]));
       } catch (e) { /* прогресс просто не сохранится между сессиями */ }
       this.renderCategoryLevels();
-      this.showCelebrationModal();
+      // Финал показываем один раз: в момент, когда пройдено последнее из всех заданий
+      this.showCelebrationModal(isNewCompletion && this.areAllLevelsCompleted());
     } else if (showFailureAlert) {
       this.sound.playWhoosh();
       this.setMascotText(this.t('mascotTryAgain'));
+      const bubble = document.getElementById('mascotBubble');
+      bubble.classList.remove('bubble-alert');
+      void bubble.offsetWidth; // перезапуск анимации при повторной ошибке
+      bubble.classList.add('bubble-alert');
     }
   }
 
@@ -1792,29 +1796,64 @@ class GeokontGame {
     }, 3500);
   }
 
-  showCelebrationModal() {
+  areAllLevelsCompleted() {
+    return Object.values(LEVELS_DB).flat().every(lvl => this.completedLevels.has(lvl.id));
+  }
+
+  showCelebrationModal(isFinale = false) {
     const modal = document.getElementById('celebrationModal');
     modal.style.display = 'flex';
+    this.isFinaleShown = isFinale;
 
-    document.getElementById('celebrationTitle').textContent = this.currentLang === 'kk'
-      ? "Жарайсың! Өте жақсы!"
-      : "Блестяще! Молодец!";
-    document.getElementById('celebrationMessage').textContent = this.currentLang === 'kk'
-      ? "Сен фигураны дәл шифр бойынша құрастырдың!"
-      : "Ты собрал фигуру в точности по шифру!";
+    const total = Object.values(LEVELS_DB).flat().length;
+    const kk = this.currentLang === 'kk';
+    if (isFinale) {
+      document.getElementById('celebrationTitle').textContent = kk
+        ? "Құттықтаймыз! Сен — Геоконт шеберісің!"
+        : "Поздравляем! Ты — мастер Геоконта!";
+      document.getElementById('celebrationMessage').textContent = kk
+        ? `Барлық ${total} тапсырма орындалды! Енді өз суретіңді салып көр.`
+        : `Все ${total} заданий выполнены! Теперь нарисуй свою собственную картину.`;
+    } else {
+      document.getElementById('celebrationTitle').textContent = kk
+        ? "Жарайсың! Өте жақсы!"
+        : "Блестяще! Молодец!";
+      document.getElementById('celebrationMessage').textContent = kk
+        ? "Сен фигураны дәл шифр бойынша құрастырдың!"
+        : "Фигура собрана в точности по шифру!";
+    }
+
+    document.querySelector('#btnNextLevel [data-i18n]').textContent = isFinale
+      ? (kk ? "Еркін шығармашылыққа өту" : "Перейти к творчеству")
+      : this.t('nextLevelBtn');
 
     this.launchConfetti();
   }
 
   goToNextLevel() {
+    if (this.isFinaleShown) {
+      this.isFinaleShown = false;
+      this.switchMode('free');
+      return;
+    }
+
     const levels = LEVELS_DB[this.currentCategory];
     if (this.currentLevelIndex < levels.length - 1) {
       this.currentLevelIndex++;
     } else {
-      // Переходим к следующей категории
-      if (this.currentCategory === 'simple') this.currentCategory = 'medium';
-      else if (this.currentCategory === 'medium') this.currentCategory = 'national';
-      this.currentLevelIndex = 0;
+      // Переходим к следующей категории, а после последней — к первому непройденному заданию
+      if (this.currentCategory === 'simple') {
+        this.currentCategory = 'medium';
+        this.currentLevelIndex = 0;
+      } else if (this.currentCategory === 'medium') {
+        this.currentCategory = 'national';
+        this.currentLevelIndex = 0;
+      } else {
+        const categories = Object.keys(LEVELS_DB);
+        const nextCategory = categories.find(cat => LEVELS_DB[cat].some(lvl => !this.completedLevels.has(lvl.id))) || categories[0];
+        this.currentCategory = nextCategory;
+        this.currentLevelIndex = Math.max(0, LEVELS_DB[nextCategory].findIndex(lvl => !this.completedLevels.has(lvl.id)));
+      }
       // Подсвечиваем новую категорию в боковой панели
       document.querySelectorAll('.category-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.cat === this.currentCategory);
@@ -1959,7 +1998,18 @@ class GeokontGame {
     const authorName = document.getElementById('childNameInput').value || "Жас шебер";
     ctx.fillStyle = '#0F172A';
     ctx.font = "bold 24px 'Nunito', sans-serif";
-    ctx.fillText(`Авторы: ${authorName} 🇰🇿`, size / 2, 790);
+    const authorLine = `Авторы: ${authorName}`;
+    ctx.fillText(authorLine, size / 2, 790);
+
+    // Флаг рисуем сами: эмодзи флага на Windows выводится буквами KZ
+    const flagX = size / 2 + ctx.measureText(authorLine).width / 2 + 12;
+    ctx.fillStyle = '#00AFCA';
+    ctx.fillRect(flagX, 770, 36, 24);
+    ctx.fillStyle = '#FEC50C';
+    ctx.fillRect(flagX + 2, 771, 3, 22);
+    ctx.beginPath();
+    ctx.arc(flagX + 20, 780, 5, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.fillStyle = '#64748B';
     ctx.font = "16px 'Nunito', sans-serif";
