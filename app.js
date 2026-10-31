@@ -530,6 +530,10 @@ class GeokontGame {
     // Резинки каждого режима хранятся отдельно, чтобы смена вкладки не стирала работу ребенка
     this.savedBoards = {};
 
+    // Рисунок до очистки или загрузки примера: «Отменить» возвращает его
+    this.undoSnapshot = null;
+    this.isExporting = false;
+
     // High Contrast State
     this.isHighContrast = false;
 
@@ -593,7 +597,7 @@ class GeokontGame {
     // Action Tools
     document.getElementById('btnUndo').addEventListener('click', () => this.undoStep());
     document.getElementById('btnFinishBand').addEventListener('click', () => this.finishCurrentBand());
-    document.getElementById('btnClearBoard').addEventListener('click', () => this.clearAll());
+    document.getElementById('btnClearBoard').addEventListener('click', () => this.clearBoardByUser());
     document.getElementById('btnExportImage').addEventListener('click', () => this.openExportModal());
 
     // Tasks Mode Category Selector
@@ -732,6 +736,7 @@ class GeokontGame {
       const peg = this.findPegAt(pos.x, pos.y);
       if (peg) {
         this.sound.playSnap();
+        this.undoSnapshot = null;
         if (this.currentBand.length === 0) {
           // Начинаем новую резинку
           this.currentBand.push(peg.id);
@@ -749,6 +754,8 @@ class GeokontGame {
               // Клик по той же точке — завершаем
               this.finishCurrentBand();
             }
+          } else if (this.currentBand.length === 2 && this.currentBand[0] === peg.id) {
+            // Возврат к первой точке сразу после второй дал бы линию туда и обратно: не считаем это шагом
           } else if (this.currentBand[0] === peg.id && this.currentBand.length >= 3 && this.canCloseBand()) {
             // Клик по начальной точке — замыкаем фигуру
             this.currentBand.push(peg.id);
@@ -799,7 +806,8 @@ class GeokontGame {
         const peg = this.findPegAt(pos.x, pos.y);
         if (peg) {
           const lastPeg = this.currentBand[this.currentBand.length - 1];
-          if (peg.id !== lastPeg) {
+          const isBackToStart = this.currentBand.length === 2 && this.currentBand[0] === peg.id;
+          if (peg.id !== lastPeg && !isBackToStart) {
             this.currentBand.push(peg.id);
             this.sound.playPluck(420);
             // Если вернулись в начало — замыкаем
@@ -997,18 +1005,54 @@ class GeokontGame {
   }
 
   undoStep() {
-    if (this.currentBand.length > 0) {
+    if (this.undoSnapshot) {
+      // Возвращаем рисунок, стертый очисткой или загрузкой примера
+      this.completedBands = this.undoSnapshot.completedBands;
+      this.currentBand = this.undoSnapshot.currentBand;
+      this.undoSnapshot = null;
+      this.sound.playWhoosh();
+    } else if (this.currentBand.length > 0) {
       this.currentBand.pop();
       this.sound.playWhoosh();
     } else if (this.completedBands.length > 0) {
-      this.completedBands.pop();
+      // Открываем последнюю резинку и убираем из нее только один шаг
+      const band = this.completedBands.pop();
+      this.currentBand = band.points.slice(0, -1);
+      this.activeColor = band.color;
+      this.syncPaletteUI();
       this.sound.playWhoosh();
     }
     this.updateHUD();
     this.render();
   }
 
+  // Запоминаем непустой рисунок перед тем, как он будет заменен
+  saveUndoSnapshot() {
+    const hasDrawing = this.completedBands.length > 0 || this.currentBand.length > 0;
+    this.undoSnapshot = hasDrawing
+      ? { completedBands: this.completedBands, currentBand: this.currentBand }
+      : null;
+  }
+
+  clearBoardByUser() {
+    this.saveUndoSnapshot();
+    const hadDrawing = Boolean(this.undoSnapshot);
+    this.completedBands = [];
+    this.currentBand = [];
+    this.dragPointer = null;
+    this.isDragging = false;
+    this.sound.playWhoosh();
+    if (hadDrawing) {
+      this.setMascotText(this.currentLang === 'kk'
+        ? "Тақта тазаланды. Суретті қайтару үшін «Болдырмау» түймесін бас!"
+        : "Доска очищена. Чтобы вернуть рисунок, нажми «Отменить»!");
+    }
+    this.updateHUD();
+    this.render();
+  }
+
   clearAll() {
+    this.undoSnapshot = null;
     this.completedBands = [];
     this.currentBand = [];
     this.dragPointer = null;
@@ -1040,10 +1084,31 @@ class GeokontGame {
     }
   }
 
-  // Индекс следующей точки шифра: первая ошибка в резинке или следующий шаг, если ошибок нет
-  getNextCipherIndex(lvl) {
-    const wrongIdx = this.currentBand.findIndex((id, i) => id !== lvl.cipher[i]);
-    return wrongIdx >= 0 ? wrongIdx : this.currentBand.length;
+  // Все верные способы пройти шифр: замкнутую фигуру можно начать с любой точки и вести в любую сторону
+  getCipherPaths(cipher) {
+    if (cipher[0] !== cipher[cipher.length - 1]) return [cipher, [...cipher].reverse()];
+    const loop = cipher.slice(0, -1);
+    const paths = [];
+    loop.forEach((_, start) => {
+      const rotated = [...loop.slice(start), ...loop.slice(0, start)];
+      paths.push([...rotated, rotated[0]]);
+      paths.push([rotated[0], ...rotated.slice(1).reverse(), rotated[0]]);
+    });
+    return paths;
+  }
+
+  // Путь, которым идет ребенок, и индекс следующей точки в нем (при ошибке — индекс ошибочного шага)
+  getCipherProgress(lvl) {
+    const matched = (path) => {
+      const wrongIdx = this.currentBand.findIndex((id, i) => id !== path[i]);
+      return wrongIdx >= 0 ? wrongIdx : this.currentBand.length;
+    };
+    let best = { path: lvl.cipher, nextIdx: matched(lvl.cipher) };
+    this.getCipherPaths(lvl.cipher).forEach(path => {
+      const nextIdx = matched(path);
+      if (nextIdx > best.nextIdx) best = { path, nextIdx };
+    });
+    return best;
   }
 
   // Обновление интерактивных цветных карточек шагов шифра
@@ -1056,8 +1121,7 @@ class GeokontGame {
     const chipsBox = document.getElementById('cipherChips');
     if (!chipsBox) return;
 
-    const targetCipher = lvl.cipher;
-    const nextIdx = this.getNextCipherIndex(lvl);
+    const { path: targetCipher, nextIdx } = this.getCipherProgress(lvl);
 
     chipsBox.innerHTML = targetCipher.map((pt, i) => {
       const peg = this.pegs.get(pt);
@@ -1137,7 +1201,7 @@ class GeokontGame {
     this.renderPegs(ctx);
 
     // Подсветка подсказки для задания
-    if (this.hintHighlightedPeg) {
+    if (this.hintHighlightedPeg && !this.isExporting) {
       const p = this.pegs.get(this.hintHighlightedPeg);
       if (p) {
         ctx.save();
@@ -1156,7 +1220,7 @@ class GeokontGame {
 
   // Отрисовка полупрозрачного контура-сұлба на игровом поле
   renderGhostGuide(ctx) {
-    if (this.currentMode !== 'tasks' || !this.showGhostGuide) return;
+    if (this.currentMode !== 'tasks' || !this.showGhostGuide || this.isExporting) return;
     const levels = LEVELS_DB[this.currentCategory];
     const lvl = levels[this.currentLevelIndex];
     if (!lvl || !lvl.cipher || lvl.cipher.length < 2) return;
@@ -1376,17 +1440,18 @@ class GeokontGame {
 
     // Определяем следующую целевую точку для задания (маяк-подсказка)
     let nextTargetPegId = null;
-    if (this.currentMode === 'tasks') {
+    if (this.currentMode === 'tasks' && !this.isExporting) {
       const levels = LEVELS_DB[this.currentCategory];
       const lvl = levels[this.currentLevelIndex];
       if (lvl) {
-        nextTargetPegId = lvl.cipher[this.getNextCipherIndex(lvl)] || null;
+        const { path, nextIdx } = this.getCipherProgress(lvl);
+        nextTargetPegId = path[nextIdx] || null;
       }
     }
 
     this.pegs.forEach(peg => {
       const isCenter = peg.id === 'О';
-      const isHovered = this.hoveredPeg === peg.id;
+      const isHovered = this.hoveredPeg === peg.id && !this.isExporting;
       const isSelected = this.currentBand.includes(peg.id);
       const isNextTarget = nextTargetPegId === peg.id;
       const pegR = isCenter ? basePegR * 1.35 : (isHovered ? basePegR * 1.25 : basePegR);
@@ -1794,8 +1859,8 @@ class GeokontGame {
     if (!lvl) return;
 
     // Ищем, какую следующую точку из шифра нужно соединить
-    const nextIdx = this.getNextCipherIndex(lvl);
-    const nextPeg = lvl.cipher[nextIdx];
+    const { path, nextIdx } = this.getCipherProgress(lvl);
+    const nextPeg = path[nextIdx];
     const hasMistake = nextIdx < this.currentBand.length;
 
     this.hintHighlightedPeg = nextPeg || null;
@@ -1963,6 +2028,7 @@ class GeokontGame {
   loadFreePreset(idx) {
     const preset = FREE_PRESETS[idx];
     if (!preset) return;
+    this.saveUndoSnapshot();
     this.completedBands = JSON.parse(JSON.stringify(preset.bands));
     this.currentBand = [];
     this.sound.playFanfare();
@@ -2016,17 +2082,23 @@ class GeokontGame {
     ctx.fillStyle = '#0284C7';
     ctx.font = "bold 32px 'Nunito', sans-serif";
     ctx.textAlign = 'center';
-    ctx.fillText("ГЕОКОНТ | МЕНІҢ ТУЫНДЫМ (МОЕ ТВОРЧЕСТВО)", size / 2, 70);
+    const kk = this.currentLang === 'kk';
+    ctx.fillText(kk ? "ГЕОКОНТ | МЕНІҢ ТУЫНДЫМ" : "ГЕОКОНТ | МОЁ ТВОРЧЕСТВО", size / 2, 70);
 
     // 4. Отрисовка игрового поля по центру
+    // На картинку попадает только работа ребенка, без контура-подсказки и подсветок
     const boardSize = 640;
+    this.isExporting = true;
+    this.render();
     ctx.drawImage(this.canvas, (size - boardSize) / 2, 95, boardSize, boardSize);
+    this.isExporting = false;
+    this.render();
 
     // 5. Имя автора и конкурсная подпись
-    const authorName = document.getElementById('childNameInput').value || "Жас шебер";
+    const authorName = document.getElementById('childNameInput').value.trim() || (kk ? "Жас шебер" : "Юный мастер");
     ctx.fillStyle = '#0F172A';
     ctx.font = "bold 24px 'Nunito', sans-serif";
-    const authorLine = `Авторы: ${authorName}`;
+    const authorLine = `${kk ? 'Авторы' : 'Автор'}: ${authorName}`;
     ctx.fillText(authorLine, size / 2, 790);
 
     // Флаг рисуем сами: эмодзи флага на Windows выводится буквами KZ
@@ -2041,7 +2113,9 @@ class GeokontGame {
 
     ctx.fillStyle = '#64748B';
     ctx.font = "16px 'Nunito', sans-serif";
-    ctx.fillText("Республикалық балалар цифрлық жобалар конкурсы • Казахстан", size / 2, 825);
+    ctx.fillText(kk
+      ? "Республикалық балалар цифрлық жобалар конкурсы • Қазақстан"
+      : "Республиканский конкурс детских цифровых проектов • Казахстан", size / 2, 825);
 
     // 6. Угловые казахские орнаменты «Қошқар мүйіз»
     this.drawCornerOrnament(ctx, 40, 40, 0);
@@ -2088,6 +2162,7 @@ class GeokontGame {
     this.currentBand = savedBoard ? savedBoard.currentBand : [];
     this.isDragging = false;
     this.dragPointer = null;
+    this.undoSnapshot = null;
 
     this.currentMode = mode;
     this.sound.playPluck(400);
@@ -2106,6 +2181,11 @@ class GeokontGame {
     document.getElementById('panelLearn').style.display = mode === 'learn' ? 'flex' : 'none';
     document.getElementById('panelTasks').style.display = mode === 'tasks' ? 'flex' : 'none';
     document.getElementById('panelFree').style.display = mode === 'free' ? 'flex' : 'none';
+
+    // Факт конкретного задания показываем только в заданиях
+    if (mode !== 'tasks') {
+      document.getElementById('ethnoNoteText').textContent = this.t('ethnoText');
+    }
 
     if (mode === 'learn') {
       this.applyStoryStep(this.storyStep);
@@ -2139,6 +2219,10 @@ class GeokontGame {
         el.textContent = dict[key];
       }
     });
+
+    document.getElementById('childNameInput').placeholder = this.currentLang === 'kk'
+      ? "Мысалы: Айзере, Әлихан, Алишер..."
+      : "Например: Айзере, Алихан, Алишер...";
 
     this.initLearnStoryStepper();
     this.renderFreePresets();
