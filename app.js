@@ -340,8 +340,8 @@ const LEVELS_DB = {
       nameKk: "«А» әрпі",
       nameRu: "Буква «А»",
       cipher: ["С4", "Ф2", "К4", "Ж2", "З4", "Ж2", "Ф2"],
-      descKk: "Әліпбидің алғашқы әрпі — А әрпін құрастыр!",
-      descRu: "Построй первую букву азбуки — красавицу «А»!",
+      descKk: "Алдымен екі аяғын сыз, сосын З4-тен Ж2-ге қайтып, Ф2-ге дейін белдеуін тарт!",
+      descRu: "Сначала нарисуй обе ножки, затем вернись от З4 к Ж2 и протяни перекладину до Ф2!",
       factKk: "«А» әрпінен ана, ата, алтын сөздері басталады.",
       factRu: "С буквы «А» начинаются самые важные и добрые слова.",
       defaultColor: "#10B981"
@@ -532,6 +532,9 @@ class GeokontGame {
 
     // High Contrast State
     this.isHighContrast = false;
+
+    // Браузер загружает голоса не сразу: запрашиваем заранее, чтобы первая озвучка уже выбрала хороший голос
+    if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
 
     this.initDOM();
     this.initEvents();
@@ -738,9 +741,15 @@ class GeokontGame {
           // Уже есть незаконченная резинка
           const lastPeg = this.currentBand[this.currentBand.length - 1];
           if (lastPeg === peg.id) {
-            // Клик по той же точке — завершаем
-            this.finishCurrentBand();
-          } else if (this.currentBand[0] === peg.id && this.currentBand.length >= 3) {
+            if (this.currentMode === 'tasks') {
+              // В заданиях случайное второе нажатие ничего не ломает: можно тянуть резинку дальше
+              this.isDragging = true;
+              this.dragPointer = { x: pos.x, y: pos.y };
+            } else {
+              // Клик по той же точке — завершаем
+              this.finishCurrentBand();
+            }
+          } else if (this.currentBand[0] === peg.id && this.currentBand.length >= 3 && this.canCloseBand()) {
             // Клик по начальной точке — замыкаем фигуру
             this.currentBand.push(peg.id);
             this.finishCurrentBand();
@@ -749,6 +758,7 @@ class GeokontGame {
             this.sound.playPluck();
             this.isDragging = true;
             this.dragPointer = { x: pos.x, y: pos.y };
+            this.finishIfTaskSolved();
           }
         }
       } else {
@@ -793,8 +803,10 @@ class GeokontGame {
             this.currentBand.push(peg.id);
             this.sound.playPluck(420);
             // Если вернулись в начало — замыкаем
-            if (this.currentBand.length >= 4 && peg.id === this.currentBand[0]) {
+            if (this.currentBand.length >= 4 && peg.id === this.currentBand[0] && this.canCloseBand()) {
               this.finishCurrentBand();
+            } else {
+              this.finishIfTaskSolved();
             }
           }
         }
@@ -965,6 +977,22 @@ class GeokontGame {
       this.currentBand = [];
       this.updateHUD();
       this.render();
+    }
+  }
+
+  // У букв и цифр линия незамкнутая: возврат к начальной точке не должен обрывать резинку
+  canCloseBand() {
+    if (this.currentMode !== 'tasks') return true;
+    const lvl = LEVELS_DB[this.currentCategory][this.currentLevelIndex];
+    return !lvl || lvl.cipher[0] === lvl.cipher[lvl.cipher.length - 1];
+  }
+
+  // Буква или цифра собрана полностью — завершаем сами, ребенку не нужно нажимать последнюю точку второй раз
+  finishIfTaskSolved() {
+    if (this.currentMode !== 'tasks') return;
+    const lvl = LEVELS_DB[this.currentCategory][this.currentLevelIndex];
+    if (lvl && this.isPolygonMatching(this.currentBand, lvl.cipher)) {
+      this.finishCurrentBand();
     }
   }
 
@@ -2154,6 +2182,8 @@ class GeokontGame {
     const el = document.getElementById('mascotSpeechText');
     if (el) {
       el.textContent = txt;
+      // Новая реплика снимает подсветку прошлой ошибки
+      document.getElementById('mascotBubble').classList.remove('bubble-alert');
       // Анимация подпрыгивания Барсенка
       const avatar = document.querySelector('.mascot-avatar-wrap');
       if (avatar) {
@@ -2161,6 +2191,18 @@ class GeokontGame {
         setTimeout(() => { avatar.style.transform = ''; }, 300);
       }
     }
+  }
+
+  // Лучший русский голос: нейронные голоса Edge и голос Google звучат живо, старые голоса Windows — как робот
+  pickRussianVoice(voices) {
+    const score = (v) => {
+      if (/natural/i.test(v.name)) return 3;
+      if (/google|online/i.test(v.name)) return 2;
+      return 1;
+    };
+    return voices
+      .filter(v => v.lang.toLowerCase().startsWith('ru'))
+      .sort((a, b) => score(b) - score(a))[0];
   }
 
   // Озвучивание речи через Web Speech API
@@ -2177,15 +2219,16 @@ class GeokontGame {
     // Казахский голос установлен редко: без него браузер молчит, поэтому читаем русским голосом
     const voices = window.speechSynthesis.getVoices();
     const langPrefix = this.currentLang === 'kk' ? 'kk' : 'ru';
-    const voice = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix))
-      || voices.find(v => v.lang.toLowerCase().startsWith('ru'));
+    const voice = (langPrefix === 'kk' && voices.find(v => v.lang.toLowerCase().startsWith('kk')))
+      || this.pickRussianVoice(voices);
     if (voice) {
       utterance.voice = voice;
       utterance.lang = voice.lang;
     }
 
     utterance.rate = 0.95; // Чуть медленнее для детского восприятия
-    utterance.pitch = 1.25; // Более детский дружелюбный тон
+    // Повышенный тон искажает старые голоса Windows и делает их «роботом», поэтому русский читаем естественным тоном
+    utterance.pitch = voice && voice.lang.toLowerCase().startsWith('ru') ? 1 : 1.25;
 
     window.speechSynthesis.speak(utterance);
     this.sound.playPluck(480);
