@@ -1013,13 +1013,19 @@ body.contrast-mode .nav-tab.active {
 
 .target-btn-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.2fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   position: sticky;
   bottom: 0;
   z-index: 2;
   background: inherit;
   padding: 4px 0;
+}
+
+/* Длинные подписи вроде «Подсказка» не должны выталкивать соседние кнопки */
+.target-btn-row .btn {
+  padding: 8px 4px;
+  font-size: 0.85rem;
 }
 
 .btn-ghost-toggle {
@@ -1614,6 +1620,15 @@ body.contrast-mode .board-legend-bar {
     grid-template-columns: 310px 1fr;
     padding: 10px;
     gap: 10px;
+  }
+
+  /* В узкой панели подпись идет под значком, иначе три кнопки задания не помещаются в ряд */
+  .target-btn-row .btn {
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 4px;
+    font-size: 0.8rem;
+    line-height: 1.15;
   }
   
   .logo-title {
