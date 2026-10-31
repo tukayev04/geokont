@@ -1182,6 +1182,7 @@ body.contrast-mode .board-toolbar {
 /* Tool Actions */
 .tool-actions-group {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
