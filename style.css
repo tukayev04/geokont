@@ -295,6 +295,12 @@ html, body {
   background-attachment: fixed;
 }
 
+/* Шапка может занимать две строки, поле занимает все оставшееся место */
+body {
+  display: flex;
+  flex-direction: column;
+}
+
 button {
   font-family: inherit;
   cursor: pointer;
@@ -498,7 +504,8 @@ body.contrast-mode .nav-tab.active {
 .main-layout {
   display: grid;
   grid-template-columns: 420px 1fr;
-  height: calc(100vh - 66px);
+  flex: 1;
+  min-height: 0;
   padding: 14px;
   gap: 16px;
   overflow: hidden;
@@ -1507,6 +1514,20 @@ body.contrast-mode .board-legend-bar {
 /* ==========================================================================
    Responsive Adaptations (Tablet, Mobile, Smart Boards)
    ========================================================================== */
+/* Шапке нужно около 1270px: на узких экранах вкладки уходят на вторую строку,
+   иначе переключатель языка и кнопки звука оказываются за краем экрана */
+@media (max-width: 1300px) {
+  .app-header {
+    flex-wrap: wrap;
+  }
+
+  .mode-nav {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 @media (max-width: 1024px) {
   .main-layout {
     grid-template-columns: 310px 1fr;
@@ -1534,6 +1555,7 @@ body.contrast-mode .board-legend-bar {
   .main-layout {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
+    flex: none;
     height: auto;
     overflow-y: auto;
   }
@@ -1544,6 +1566,14 @@ body.contrast-mode .board-legend-bar {
 
   .canvas-viewport {
     min-height: 440px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Три вкладки не помещаются в одну строку на телефоне */
+  .mode-nav {
+    flex-wrap: wrap;
+    border-radius: var(--radius-lg);
   }
 }
 

@@ -524,8 +524,11 @@ class GeokontGame {
     this.showGhostGuide = true; // Сұлба-көмекші на доске
 
     // Learn Mode Story Steps
-    this.storyStep = 0;
+    this.storyStep = 1;
     this.highlightRays = false;
+
+    // Резинки каждого режима хранятся отдельно, чтобы смена вкладки не стирала работу ребенка
+    this.savedBoards = {};
 
     // High Contrast State
     this.isHighContrast = false;
@@ -663,6 +666,11 @@ class GeokontGame {
       this.downloadExportedPNG();
     });
 
+    // Превью обновляется сразу, как только ребенок вводит имя
+    document.getElementById('childNameInput').addEventListener('input', () => {
+      this.updateExportPreview();
+    });
+
     // Ray chips in legend click reaction
     document.querySelectorAll('.ray-chip').forEach(chip => {
       chip.addEventListener('click', (e) => {
@@ -688,11 +696,22 @@ class GeokontGame {
   // Настройка интерактивных событий (Мышь + Сенсорное управление Touch)
   // ------------------------------------------------------------------------
   initEvents() {
-    window.addEventListener('resize', () => {
+    const onResize = () => {
       this.resizeCanvas();
       this.render();
       if (this.currentMode === 'tasks') this.renderPreview();
-    });
+    };
+    window.addEventListener('resize', onResize);
+    // Область поля меняется и без изменения окна (например, панель инструментов переносится на вторую строку)
+    if (window.ResizeObserver) {
+      new ResizeObserver(onResize).observe(this.canvas.parentElement);
+    }
+
+    // Значок координаты и подсветка не должны оставаться, когда указатель ушел с поля
+    const clearHover = () => {
+      this.hoveredPeg = null;
+      document.getElementById('hoverPegBadge').style.display = 'none';
+    };
 
     // Mouse & Touch unified coordinates
     const getPos = (e) => {
@@ -804,6 +823,11 @@ class GeokontGame {
       }
     });
 
+    this.canvas.addEventListener('mouseleave', () => {
+      clearHover();
+      this.render();
+    });
+
     // Touch Listeners (prevent screen scrolling while playing)
     this.canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
@@ -823,8 +847,17 @@ class GeokontGame {
         x: (touch.clientX - rect.left) * (this.canvas.width / rect.width),
         y: (touch.clientY - rect.top) * (this.canvas.height / rect.height)
       };
+      clearHover();
       handleEnd(pos);
     }, { passive: false });
+
+    // Система может прервать касание (жест, уведомление) — резинка не должна остаться «прилипшей»
+    this.canvas.addEventListener('touchcancel', () => {
+      clearHover();
+      this.isDragging = false;
+      this.dragPointer = null;
+      this.render();
+    });
   }
 
   // ------------------------------------------------------------------------
@@ -979,6 +1012,12 @@ class GeokontGame {
     }
   }
 
+  // Индекс следующей точки шифра: первая ошибка в резинке или следующий шаг, если ошибок нет
+  getNextCipherIndex(lvl) {
+    const wrongIdx = this.currentBand.findIndex((id, i) => id !== lvl.cipher[i]);
+    return wrongIdx >= 0 ? wrongIdx : this.currentBand.length;
+  }
+
   // Обновление интерактивных цветных карточек шагов шифра
   updateCipherChipsProgress() {
     if (this.currentMode !== 'tasks') return;
@@ -990,7 +1029,7 @@ class GeokontGame {
     if (!chipsBox) return;
 
     const targetCipher = lvl.cipher;
-    const currentPoints = this.currentBand;
+    const nextIdx = this.getNextCipherIndex(lvl);
 
     chipsBox.innerHTML = targetCipher.map((pt, i) => {
       const peg = this.pegs.get(pt);
@@ -1000,10 +1039,10 @@ class GeokontGame {
 
       let statusClass = '';
       let icon = '';
-      if (i < currentPoints.length && currentPoints[i] === pt) {
+      if (i < nextIdx) {
         statusClass = 'completed';
         icon = '✓ ';
-      } else if (i === currentPoints.length) {
+      } else if (i === nextIdx) {
         statusClass = 'next-target';
         icon = '🎯 ';
       }
@@ -1104,9 +1143,12 @@ class GeokontGame {
     for (let i = 1; i < coords.length; i++) {
       ctx.lineTo(coords[i].x, coords[i].y);
     }
-    ctx.fillStyle = lvl.defaultColor || '#00AFCA';
-    ctx.globalAlpha = 0.12;
-    ctx.fill();
+    // Заливаем только замкнутые фигуры: у букв и цифр заливка рисует лишнюю сторону
+    if (lvl.cipher[0] === lvl.cipher[lvl.cipher.length - 1]) {
+      ctx.fillStyle = lvl.defaultColor || '#00AFCA';
+      ctx.globalAlpha = 0.12;
+      ctx.fill();
+    }
 
     // Пунктирная лента контура
     ctx.strokeStyle = lvl.defaultColor || '#00AFCA';
@@ -1171,8 +1213,9 @@ class GeokontGame {
 
       // Яркий круглый маяк-буква на краю диска
       const badgeR = Math.max(14, this.radius * 0.046);
-      const bx = this.centerX + Math.cos(rad) * (this.radius * 1.01);
-      const by = this.centerY + Math.sin(rad) * (this.radius * 1.01);
+      // Маяк вынесен за 4-й штырек, иначе штырек закрывает букву луча
+      const bx = this.centerX + Math.cos(rad) * (this.radius * 1.075);
+      const by = this.centerY + Math.sin(rad) * (this.radius * 1.075);
 
       ctx.save();
       // Тень маяка
@@ -1219,9 +1262,9 @@ class GeokontGame {
     // Маркеры-номера уровней (1, 2, 3, 4) для наглядности ребенку
     distRatios.forEach((ratio, idx) => {
       const ringNum = (idx + 1).toString();
-      // Размещаем маркер чуть правее центрального вертикального луча Г
+      // Размещаем маркер посередине между лучами Г и С, чтобы он не перекрывал штырьки
       const ringDist = this.radius * ratio;
-      const angle = (100 * Math.PI) / 180;
+      const angle = (112.5 * Math.PI) / 180;
       const rx = this.centerX + Math.cos(angle) * ringDist;
       const ry = this.centerY + Math.sin(angle) * ringDist;
       const tagR = Math.max(9, this.radius * 0.026);
@@ -1308,8 +1351,8 @@ class GeokontGame {
     if (this.currentMode === 'tasks') {
       const levels = LEVELS_DB[this.currentCategory];
       const lvl = levels[this.currentLevelIndex];
-      if (lvl && this.currentBand.length < lvl.cipher.length) {
-        nextTargetPegId = lvl.cipher[this.currentBand.length];
+      if (lvl) {
+        nextTargetPegId = lvl.cipher[this.getNextCipherIndex(lvl)] || null;
       }
     }
 
@@ -1380,6 +1423,10 @@ class GeokontGame {
 
       // Смещение текста наружу
       let textOffset = { x: 0, y: -(pegR + 11) };
+      // У верхнего штырька подпись сбоку, иначе она закрывает маяк луча «К»
+      if (peg.id === 'К4') {
+        textOffset = { x: pegR + fontSize * 1.1, y: 0 };
+      }
       if (isCenter) {
         textOffset = { x: 0, y: 0 };
         ctx.fillStyle = '#FFFFFF';
@@ -1450,7 +1497,7 @@ class GeokontGame {
     ];
 
     container.innerHTML = steps.map(s => `
-      <div class="story-step-item ${s.num === 1 ? 'active' : ''}" data-step="${s.num}">
+      <div class="story-step-item ${s.num === this.storyStep ? 'active' : ''}" data-step="${s.num}">
         <div class="step-num">${s.num}</div>
         <div class="step-content">
           <strong>${this.currentLang === 'kk' ? s.titleKk : s.titleRu}</strong>
@@ -1471,25 +1518,27 @@ class GeokontGame {
 
   selectStoryStep(stepNum) {
     this.sound.playPluck(460);
+    this.applyStoryStep(stepNum);
+  }
+
+  applyStoryStep(stepNum) {
+    this.storyStep = stepNum;
+    this.setMascotText(this.getStoryStepText(stepNum));
     // Каждый шаг начинается с чистого поля без подсветок предыдущего шага
-    this.hintHighlightedPeg = null;
-    this.highlightRays = false;
-    if (stepNum === 1) {
-      this.setMascotText(this.t('mascotWelcome'));
-      this.highlightRays = false;
-    } else if (stepNum === 2) {
-      this.setMascotText(this.currentLang === 'kk'
-        ? "Орталық «О» штырькасына назар аудар! Ол күн сияқты жарқырап тұр!"
-        : "Посмотри на центральный штырек «О»! Он светит как теплое солнышко!");
-      this.hintHighlightedPeg = 'О';
-    } else if (stepNum === 3) {
-      this.setMascotText(this.t('mascotLearnRays'));
-      this.highlightRays = true;
-    } else if (stepNum === 4) {
-      this.setMascotText(this.t('mascotStretchHelp'));
-      this.hintHighlightedPeg = 'К3';
-    }
+    this.highlightRays = stepNum === 3;
+    this.hintHighlightedPeg = stepNum === 2 ? 'О' : (stepNum === 4 ? 'К3' : null);
     this.render();
+  }
+
+  getStoryStepText(stepNum) {
+    if (stepNum === 2) {
+      return this.currentLang === 'kk'
+        ? "Орталық «О» штырькасына назар аудар! Ол күн сияқты жарқырап тұр!"
+        : "Посмотри на центральный штырек «О»! Он светит как теплое солнышко!";
+    }
+    if (stepNum === 3) return this.t('mascotLearnRays');
+    if (stepNum === 4) return this.t('mascotStretchHelp');
+    return this.t('mascotWelcome');
   }
 
   // ------------------------------------------------------------------------
@@ -1527,6 +1576,8 @@ class GeokontGame {
 
     if (!keepBoard) {
       // Сброс текущей доски для чистоты задания
+      clearTimeout(this.hintTimer);
+      this.hintHighlightedPeg = null;
       this.clearAll();
       this.activeColor = lvl.defaultColor || '#EF4444';
       this.syncPaletteUI();
@@ -1592,10 +1643,12 @@ class GeokontGame {
       for (let i = 1; i < coords.length; i++) {
         ctx.lineTo(coords[i].x, coords[i].y);
       }
-      ctx.fillStyle = lvl.defaultColor || '#0284C7';
-      ctx.globalAlpha = 0.25;
-      ctx.fill();
-      ctx.globalAlpha = 1.0;
+      if (lvl.cipher[0] === lvl.cipher[lvl.cipher.length - 1]) {
+        ctx.fillStyle = lvl.defaultColor || '#0284C7';
+        ctx.globalAlpha = 0.25;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+      }
 
       // Контур
       ctx.strokeStyle = lvl.defaultColor || '#0284C7';
@@ -1665,8 +1718,11 @@ class GeokontGame {
       return same(bandA, bandB) || same(bandA, [...bandB].reverse());
     }
 
+    // Замкнутую фигуру нужно довести до начальной точки, незамкнутая линия не засчитывается
+    if (bandA.length <= 2 || bandA[0] !== bandA[bandA.length - 1]) return false;
+
     // Очистим замыкающий дубль, если он равен началу
-    const cleanA = (bandA[0] === bandA[bandA.length - 1] && bandA.length > 2) ? bandA.slice(0, -1) : [...bandA];
+    const cleanA =(bandA[0] === bandA[bandA.length - 1] && bandA.length > 2) ? bandA.slice(0, -1) : [...bandA];
     const cleanB = (bandB[0] === bandB[bandB.length - 1] && bandB.length > 2) ? bandB.slice(0, -1) : [...bandB];
 
     if (cleanA.length !== cleanB.length) return false;
@@ -1706,19 +1762,26 @@ class GeokontGame {
     if (!lvl) return;
 
     // Ищем, какую следующую точку из шифра нужно соединить
-    let nextPeg = lvl.cipher[0];
-    if (this.currentBand.length > 0) {
-      const currentIdx = this.currentBand.length;
-      if (currentIdx < lvl.cipher.length) {
-        nextPeg = lvl.cipher[currentIdx];
-      }
-    }
+    const nextIdx = this.getNextCipherIndex(lvl);
+    const nextPeg = lvl.cipher[nextIdx];
+    const hasMistake = nextIdx < this.currentBand.length;
 
-    this.hintHighlightedPeg = nextPeg;
+    this.hintHighlightedPeg = nextPeg || null;
     this.sound.playPluck(520);
-    this.setMascotText(this.currentLang === 'kk'
-      ? `Көмек: келесі нүкте — «${nextPeg}»!`
-      : `Подсказка: следующая точка — «${nextPeg}»!`);
+    if (!nextPeg) {
+      // Все точки линии уже пройдены — осталось закрепить резинку
+      this.setMascotText(this.currentLang === 'kk'
+        ? "Барлық нүкте дайын! Енді «Бекіту» түймесін бас!"
+        : "Все точки пройдены! Теперь нажми «Закрепить»!");
+    } else if (hasMistake) {
+      this.setMascotText(this.currentLang === 'kk'
+        ? `«${this.currentBand[nextIdx]}» нүктесі шифр бойынша емес. «Болдырмау» түймесін бас, бұл жерде «${nextPeg}» керек!`
+        : `Точка «${this.currentBand[nextIdx]}» не по шифру. Нажми «Отменить», здесь нужна «${nextPeg}»!`);
+    } else {
+      this.setMascotText(this.currentLang === 'kk'
+        ? `Көмек: келесі нүкте — «${nextPeg}»!`
+        : `Подсказка: следующая точка — «${nextPeg}»!`);
+    }
     this.render();
 
     // Сбрасываем прошлый таймер, иначе старая подсказка гасит новую раньше времени
@@ -1849,7 +1912,10 @@ class GeokontGame {
   openExportModal() {
     const exportModal = document.getElementById('exportModal');
     exportModal.style.display = 'flex';
+    this.updateExportPreview();
+  }
 
+  updateExportPreview() {
     const finalCanvas = this.generateExportCanvas();
     const previewImg = document.getElementById('exportImgPreview');
     previewImg.src = finalCanvas.toDataURL('image/png');
@@ -1935,6 +2001,16 @@ class GeokontGame {
   // ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ И ЯЗЫКОВ
   // ------------------------------------------------------------------------
   switchMode(mode) {
+    if (mode === this.currentMode) return;
+
+    // Сохраняем резинки текущего режима и возвращаем сохраненные резинки нового
+    this.savedBoards[this.currentMode] = { completedBands: this.completedBands, currentBand: this.currentBand };
+    const savedBoard = this.savedBoards[mode];
+    this.completedBands = savedBoard ? savedBoard.completedBands : [];
+    this.currentBand = savedBoard ? savedBoard.currentBand : [];
+    this.isDragging = false;
+    this.dragPointer = null;
+
     this.currentMode = mode;
     this.sound.playPluck(400);
 
@@ -1954,13 +2030,14 @@ class GeokontGame {
     document.getElementById('panelFree').style.display = mode === 'free' ? 'flex' : 'none';
 
     if (mode === 'learn') {
-      this.setMascotText(this.t('mascotWelcome'));
+      this.applyStoryStep(this.storyStep);
     } else if (mode === 'tasks') {
-      this.loadCurrentLevel();
+      this.loadCurrentLevel(Boolean(savedBoard));
     } else if (mode === 'free') {
       this.setMascotText(this.t('mascotFreeMode'));
     }
 
+    this.updateHUD();
     this.render();
   }
 
@@ -1977,6 +2054,7 @@ class GeokontGame {
 
   updateLanguageUI() {
     const dict = I18N[this.currentLang];
+    document.documentElement.lang = this.currentLang;
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.dataset.i18n;
       if (dict[key]) {
@@ -1993,10 +2071,12 @@ class GeokontGame {
       this.renderCategoryLevels();
       this.loadCurrentLevel(true);
     } else if (this.currentMode === 'learn') {
-      this.setMascotText(this.t('mascotWelcome'));
+      this.setMascotText(this.getStoryStepText(this.storyStep));
     } else {
       this.setMascotText(this.t('mascotFreeMode'));
     }
+
+    this.updateHUD();
   }
 
   t(key) {
@@ -2043,6 +2123,17 @@ class GeokontGame {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = this.currentLang === 'kk' ? 'kk-KZ' : 'ru-RU';
+
+    // Казахский голос установлен редко: без него браузер молчит, поэтому читаем русским голосом
+    const voices = window.speechSynthesis.getVoices();
+    const langPrefix = this.currentLang === 'kk' ? 'kk' : 'ru';
+    const voice = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix))
+      || voices.find(v => v.lang.toLowerCase().startsWith('ru'));
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang;
+    }
+
     utterance.rate = 0.95; // Чуть медленнее для детского восприятия
     utterance.pitch = 1.25; // Более детский дружелюбный тон
 
